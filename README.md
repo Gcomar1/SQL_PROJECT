@@ -73,7 +73,7 @@ The dataset consists of job postings for **Data Analyst** roles, including:
       AND j.salary_year_avg IS NOT NULL 
       AND j.job_location = 'Anywhere'
     ORDER BY j.salary_year_avg DESC
-    LIMIT 10;
+    LIMIT 10; ```
 
 ### ✅ `02_top_skills_in_top_jobs.sql`
 - Identifies **skills associated with the top-paying jobs**.
