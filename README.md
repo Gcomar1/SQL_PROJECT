@@ -127,8 +127,7 @@ GROUP BY
     skills
 ORDER BY
     demand_count DESC
-LIMIT 5;
-  ```
+LIMIT 5; ```
 
 ### ✅ `04_top_paying_skills.sql`
 - Calculates the **average salary for each skill**.
