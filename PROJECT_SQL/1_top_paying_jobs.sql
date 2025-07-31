@@ -11,6 +11,7 @@ Purpose:
 */
 
 SELECT 
+    j.job_id,
     j.job_country,
     c.name AS company_name,
     j.job_title,
