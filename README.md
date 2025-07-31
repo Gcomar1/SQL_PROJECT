@@ -57,12 +57,55 @@ The dataset consists of job postings for **Data Analyst** roles, including:
 - Lists the **top 10 remote Data Analyst jobs** based on annual average salary.
 - Filters out postings with `NULL` salary values.
 - Includes company, title, location, and posted date.
+```sql
+    SELECT 
+        j.job_id,
+        j.job_country,
+        c.name AS company_name,
+        j.job_title,
+        j.job_location,
+        j.job_schedule_type,
+        j.salary_year_avg,
+        j.job_posted_date
+    FROM job_postings_fact j
+    LEFT JOIN company_dim c ON j.company_id = c.company_id
+    WHERE j.job_title_short = 'Data Analyst' 
+      AND j.salary_year_avg IS NOT NULL 
+      AND j.job_location = 'Anywhere'
+    ORDER BY j.salary_year_avg DESC
+    LIMIT 10;
 
 ### ✅ `02_top_skills_in_top_jobs.sql`
 - Identifies **skills associated with the top-paying jobs**.
 - Joins job data with skill mappings and lists all required skills per role.
-- Insights show dominance of skills like **SQL**, **Python**, **Tableau**, and **Excel**.
+- Insights show dominance of skills like **SQL**, **Python**, **Tableau**, and **Excel**```
+```sql
+WITH job_ids AS (
+    SELECT 
+        j.job_id,
+        j.job_country,
+        c.name AS company_name,
+        j.job_title,
+        j.job_location,
+        j.job_schedule_type,
+        j.salary_year_avg,
+        j.job_posted_date
+    FROM job_postings_fact j
+    LEFT JOIN company_dim c ON j.company_id = c.company_id
+    WHERE j.job_title_short = 'Data Analyst' 
+      AND j.salary_year_avg IS NOT NULL 
+      AND j.job_location = 'Anywhere'
+    ORDER BY j.salary_year_avg DESC
+)
+SELECT
+    sjd.skill_id,
+    sd.skills,
+    ji.*
 
+FROM job_ids ji
+INNER JOIN skills_job_dim sjd ON ji.job_id = sjd.job_id
+LEFT JOIN skills_dim sd ON sjd.skill_id = sd.skill_id;```
+  
 ### ✅ `03_most_demanded_skills.sql`
 - Returns the **top 5 most in-demand skills** for Data Analyst roles.
 - Focuses on **remote jobs only**.
@@ -70,11 +113,44 @@ The dataset consists of job postings for **Data Analyst** roles, including:
   - `SQL`: 7291 postings  
   - `Excel`: 4611  
   - `Python`, `Tableau`, `Power BI` also prominent
+  ```sql
+  SELECT 
+    skills,
+    COUNT(skills_job_dim.job_id) AS demand_count
+FROM job_postings_fact
+INNER JOIN skills_job_dim ON job_postings_fact.job_id = skills_job_dim.job_id
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+WHERE
+    job_title_short = 'Data Analyst' 
+    AND job_work_from_home = True 
+GROUP BY
+    skills
+ORDER BY
+    demand_count DESC
+LIMIT 5;
+  ```
 
 ### ✅ `04_top_paying_skills.sql`
 - Calculates the **average salary for each skill**.
 - Focuses on **remote jobs with known salary**.
 - Skills like `PySpark`, `GitLab`, `Pandas`, `Databricks`, and `Jupyter` offer top average salaries.
+```sql
+SELECT 
+    skills,
+    round(AVG(salary_year_avg)) as avg_salary
+FROM job_postings_fact
+INNER JOIN skills_job_dim ON job_postings_fact.job_id = skills_job_dim.job_id
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+WHERE
+    job_title_short = 'Data Analyst' 
+    and salary_year_avg is not null 
+    AND job_work_from_home = True 
+GROUP BY
+    skills
+ORDER BY
+    avg_salary DESC
+LIMIT 50;
+```
 
 ### ✅ `05_optimal_skills.sql`
 - Merges **demand and salary metrics** to find the **most strategic skills** to learn.
@@ -83,7 +159,76 @@ The dataset consists of job postings for **Data Analyst** roles, including:
   - High average salary
 - Highlights skills like:
   - `Snowflake`, `Azure`, `AWS`, `Python`, `Tableau`, `Looker`, `Oracle`
+```sql
+WITH skills_demand AS (
+    SELECT
+        skills_dim.skill_id,
+        skills_dim.skills,
+        COUNT(skills_job_dim.job_id) AS demand_count
+    FROM job_postings_fact
+    INNER JOIN skills_job_dim ON job_postings_fact.job_id = skills_job_dim.job_id
+    INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+    WHERE
+        job_title_short = 'Data Analyst' 
+        AND salary_year_avg IS NOT NULL
+        AND job_work_from_home = True 
+    GROUP BY
+        skills_dim.skill_id
+), 
+-- Skills with high average salaries for Data Analyst roles
+-- Use Query #4
+average_salary AS (
+    SELECT 
+        skills_job_dim.skill_id,
+        ROUND(AVG(job_postings_fact.salary_year_avg), 0) AS avg_salary
+    FROM job_postings_fact
+    INNER JOIN skills_job_dim ON job_postings_fact.job_id = skills_job_dim.job_id
+    INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+    WHERE
+        job_title_short = 'Data Analyst'
+        AND salary_year_avg IS NOT NULL
+        AND job_work_from_home = True 
+    GROUP BY
+        skills_job_dim.skill_id
+)
+-- Return high demand and high salaries for 10 skills 
+SELECT
+    skills_demand.skill_id,
+    skills_demand.skills,
+    demand_count,
+    avg_salary
+FROM
+    skills_demand
+INNER JOIN  average_salary ON skills_demand.skill_id = average_salary.skill_id
+WHERE  
+    demand_count > 10
+ORDER BY
+    avg_salary DESC,
+    demand_count DESC
+LIMIT 25;
 
+-- rewriting this same query more concisely
+SELECT 
+    skills_dim.skill_id,
+    skills_dim.skills,
+    COUNT(skills_job_dim.job_id) AS demand_count,
+    ROUND(AVG(job_postings_fact.salary_year_avg), 0) AS avg_salary
+FROM job_postings_fact
+INNER JOIN skills_job_dim ON job_postings_fact.job_id = skills_job_dim.job_id
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+WHERE
+    job_title_short = 'Data Analyst'
+    AND salary_year_avg IS NOT NULL
+    AND job_work_from_home = True 
+GROUP BY
+    skills_dim.skill_id
+HAVING
+    COUNT(skills_job_dim.job_id) > 10
+ORDER BY
+    avg_salary DESC,
+    demand_count DESC
+LIMIT 25;
+```
 ---
 
 ## 📈 Dashboards & Summary of Insights
